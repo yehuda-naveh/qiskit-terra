@@ -1,3 +1,5 @@
+this is a new line
+
 # -*- coding: utf-8 -*-
 
 # Copyright 2017, IBM.
