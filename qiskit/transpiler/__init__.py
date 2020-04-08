@@ -1,14 +1,69 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2018, IBM.
+# This code is part of Qiskit.
 #
-# This source code is licensed under the Apache License, Version 2.0 found in
-# the LICENSE.txt file in the root directory of this source tree.
+# (C) Copyright IBM 2017, 2018.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
-"""Utils for transpiler."""
+"""
+=====================================
+Transpiler (:mod:`qiskit.transpiler`)
+=====================================
 
-from ._passmanager import PassManager
-from ._transpilererror import TranspilerError
+.. currentmodule:: qiskit.transpiler
 
-# pylint: disable=redefined-builtin
-from ._transpiler import compile, transpile
+Pass Managment
+==============
+
+.. autosummary::
+   :toctree: ../stubs/
+
+   PassManager
+   PassManagerConfig
+   PropertySet
+   FlowController
+
+Layout and Topology
+===================
+
+.. autosummary::
+   :toctree: ../stubs/
+
+   Layout
+   CouplingMap
+
+Fenced Objects
+==============
+
+.. autosummary::
+   :toctree: ../stubs/
+
+   FencedDAGCircuit
+   FencedPropertySet
+
+Exceptions
+==========
+
+.. autosummary::
+   :toctree: ../stubs/
+
+   TranspilerError
+   TranspilerAccessError
+"""
+
+from .runningpassmanager import FlowController
+from .passmanager import PassManager
+from .passmanager_config import PassManagerConfig
+from .propertyset import PropertySet
+from .exceptions import TranspilerError, TranspilerAccessError
+from .fencedobjs import FencedDAGCircuit, FencedPropertySet
+from .basepasses import AnalysisPass, TransformationPass
+from .coupling import CouplingMap
+from .layout import Layout

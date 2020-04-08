@@ -1,25 +1,33 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017, IBM.
+# This code is part of Qiskit.
 #
-# This source code is licensed under the Apache License, Version 2.0 found in
-# the LICENSE.txt file in the root directory of this source tree.
+# (C) Copyright IBM 2017.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
 """
-Quantum teleportation example based on an OpenQASM example.
+Quantum teleportation example.
 
 Note: if you have only cloned the Qiskit repository but not
 used `pip install`, the examples only work from the root directory.
 """
 
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+from qiskit import BasicAer
 from qiskit import execute
 
 ###############################################################
 # Set the backend name and coupling map.
 ###############################################################
-backend = "local_qasm_simulator"
 coupling_map = [[0, 1], [0, 2], [1, 2], [3, 2], [3, 4], [4, 2]]
+backend = BasicAer.get_backend("qasm_simulator")
 
 ###############################################################
 # Make a quantum program for quantum teleportation.
@@ -47,6 +55,7 @@ qc.measure(q[0], c0[0])
 qc.measure(q[1], c1[0])
 
 # Apply a correction
+qc.barrier(q)
 qc.z(q[2]).c_if(c0, 1)
 qc.x(q[2]).c_if(c1, 1)
 qc.measure(q[2], c2[0])
@@ -57,13 +66,18 @@ qc.measure(q[2], c2[0])
 ###############################################################
 
 # First version: not mapped
-result = execute(qc, backend=backend, coupling_map=None, shots=1024).result()
-print(result)
-print(result.get_counts("teleport"))
+initial_layout = {q[0]: 0,
+                  q[1]: 1,
+                  q[2]: 2}
+job = execute(qc, backend=backend, coupling_map=None, shots=1024,
+              initial_layout=initial_layout)
 
-# Second version: mapped to qx2 coupling graph
-result = execute(qc, backend=backend, coupling_map=coupling_map, shots=1024).result()
-print(result)
-print(result.get_counts("teleport"))
+result = job.result()
+print(result.get_counts(qc))
 
+# Second version: mapped to 2x8 array coupling graph
+job = execute(qc, backend=backend, coupling_map=coupling_map, shots=1024,
+              initial_layout=initial_layout)
+result = job.result()
+print(result.get_counts(qc))
 # Both versions should give the same distribution

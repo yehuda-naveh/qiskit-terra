@@ -1,62 +1,125 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017, IBM.
+# This code is part of Qiskit.
 #
-# This source code is licensed under the Apache License, Version 2.0 found in
-# the LICENSE.txt file in the root directory of this source tree.
+# (C) Copyright IBM 2017.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
 """
-two-qubit ZZ-rotation gate.
+Two-qubit ZZ-rotation gate.
 """
-from qiskit import CompositeGate
-from qiskit import Gate
-from qiskit import QuantumCircuit
-from qiskit._instructionset import InstructionSet
-from qiskit._quantumregister import QuantumRegister
-from qiskit.extensions.standard import header  # pylint: disable=unused-import
+from qiskit.circuit import Gate
+from qiskit.circuit import QuantumCircuit
+from qiskit.circuit import QuantumRegister
 
 
 class RZZGate(Gate):
-    """Two-qubit ZZ-rotation gate."""
+    r"""A parameteric 2-qubit :math:`Z \otimes Z` interaction (rotation about ZZ).
 
-    def __init__(self, theta, ctl, tgt, circ=None):
-        """Create new rzz gate."""
-        super().__init__("rzz", [theta], [ctl, tgt], circ)
+    This gate is symmetric, and is maximally entangling at :math:`\theta = \pi/2`.
 
-    def qasm(self):
-        """Return OPENQASM string."""
-        ctl = self.arg[0]
-        tgt = self.arg[1]
-        theta = self.param[0]
-        return self._qasmif("rzz(%s) %s[%d],%s[%d];" % (theta,
-                                                        ctl[0].name, ctl[1],
-                                                        tgt[0].name, tgt[1]))
+    **Circuit Symbol:**
+
+    .. parsed-literal::
+
+        q_0: ───■────
+                │zz(θ)
+        q_1: ───■────
+
+    **Matrix Representation:**
+
+    .. math::
+
+        R_{ZZ}(\theta) = exp(-i \frac{\theta}{2} Z{\otimes}Z) =
+            \begin{pmatrix}
+                e^{-i\frac{\theta}{2}} & 0 & 0 & 0 \\
+                0 & e^{i\frac{\theta}{2}} & 0 & 0 \\
+                0 & 0 & e^{i\frac{\theta}{2}} & 0 \\
+                0 & 0 & 0 & e^{-i\frac{\theta}{2}}
+            \end{pmatrix}
+
+    This is a direct sum of RZ rotations, so this gate is equivalent to a
+    uniformly controlled (multiplexed) RZ gate:
+
+    .. math::
+
+        R_{ZZ}(\theta) =
+            \begin{pmatrix}
+                RZ(\theta) & 0 \\
+                0 & RZ(-\theta)
+            \end{pmatrix}
+
+    **Examples:**
+
+        .. math::
+
+            R_{ZZ}(\theta = 0) = I
+
+        .. math::
+
+            R_{ZZ}(\theta = 2\pi) = -I
+
+        .. math::
+
+            R_{ZZ}(\theta = \pi) = - Z \otimes Z
+
+        .. math::
+
+            R_{ZZ}(\theta = \frac{\pi}{2}) = \frac{1}{\sqrt{2}}
+                                    \begin{pmatrix}
+                                        1-i & 0 & 0 & 0 \\
+                                        0 & 1+i & 0 & 0 \\
+                                        0 & 0 & 1+i & 0 \\
+                                        0 & 0 & 0 & 1-i
+                                    \end{pmatrix}
+    """
+
+    def __init__(self, theta):
+        """Create new RZZ gate."""
+        super().__init__('rzz', 2, [theta])
+
+    def _define(self):
+        """
+        gate rzz(theta) a, b { cx a, b; rz(theta) b; cx a, b; }
+        """
+        from qiskit.extensions.standard.rz import RZGate
+        from qiskit.extensions.standard.x import CXGate
+        definition = []
+        q = QuantumRegister(2, 'q')
+        rule = [
+            (CXGate(), [q[0], q[1]], []),
+            (RZGate(self.params[0]), [q[1]], []),
+            (CXGate(), [q[0], q[1]], [])
+        ]
+        for inst in rule:
+            definition.append(inst)
+        self.definition = definition
 
     def inverse(self):
-        """Invert this gate."""
-        self.param[0] = -self.param[0]
-        return self
+        """Return inverse RZZ gate (i.e. with the negative rotation angle)."""
+        return RZZGate(-self.params[0])
 
-    def reapply(self, circ):
-        """Reapply this gate to corresponding qubits in circ."""
-        self._modifiers(circ.rzz(self.param[0], self.arg[0], self.arg[1]))
-
-
-def rzz(self, theta, ctl, tgt):
-    """Apply RZZ to circuit."""
-    if isinstance(ctl, QuantumRegister) and \
-       isinstance(tgt, QuantumRegister) and len(ctl) == len(tgt):
-        instructions = InstructionSet()
-        for i in range(ctl.size):
-            instructions.add(self.rzz(theta, (ctl, i), (tgt, i)))
-        return instructions
-
-    self._check_qubit(ctl)
-    self._check_qubit(tgt)
-    self._check_dups([ctl, tgt])
-    return self._attach(RZZGate(theta, ctl, tgt, self))
+    # TODO: this is the correct matrix and is equal to the definition above,
+    # however the control mechanism cannot distinguish U1 and RZ yet.
+    # def to_matrix(self):
+    #    """Return a numpy.array for the RZZ gate."""
+    #    theta = float(self.params[0])
+    #    return np.array([[np.exp(-1j*theta/2), 0, 0, 0],
+    #                     [0, np.exp(1j*theta/2), 0, 0],
+    #                     [0, 0, np.exp(1j*theta/2), 0],
+    #                     [0, 0, 0, np.exp(-1j*theta/2)]], dtype=complex)
 
 
-# Add to QuantumCircuit and CompositeGate classes
+def rzz(self, theta, qubit1, qubit2):
+    """Apply :class:`~qiskit.extensions.standard.RZZGate`."""
+    return self.append(RZZGate(theta), [qubit1, qubit2], [])
+
+
 QuantumCircuit.rzz = rzz
-CompositeGate.rzz = rzz

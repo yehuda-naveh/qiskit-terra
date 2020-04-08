@@ -1,24 +1,34 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017, IBM.
+# This code is part of Qiskit.
 #
-# This source code is licensed under the Apache License, Version 2.0 found in
-# the LICENSE.txt file in the root directory of this source tree.
+# (C) Copyright IBM 2017.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
-# pylint: disable=invalid-name,missing-docstring
+# pylint: disable=missing-docstring
 
 """Quick program to test the qi tools modules."""
 
 import unittest
-from copy import deepcopy
-
+from unittest.mock import Mock, call, patch
+import math
+from io import StringIO
 import numpy as np
 
-from qiskit.tools.qi.pauli import Pauli, random_pauli, inverse_pauli, \
-    pauli_group, sgn_prod
 from qiskit.tools.qi.qi import partial_trace, vectorize, devectorize, outer
-from qiskit.tools.qi.qi import state_fidelity, purity, concurrence
-from .common import QiskitTestCase
+from qiskit.tools.qi.qi import concurrence, qft, chop
+from qiskit.tools.qi.qi import shannon_entropy, entropy, mutual_information
+from qiskit.tools.qi.qi import choi_to_pauli
+from qiskit.tools.qi.qi import entanglement_of_formation, is_pos_def
+from qiskit.quantum_info import purity
+from qiskit.test import QiskitTestCase
 
 
 class TestQI(QiskitTestCase):
@@ -86,31 +96,6 @@ class TestQI(QiskitTestCase):
                      np.linalg.norm(outer(v_z, v_y) - op_zy) == 0)
         self.assertTrue(test_pass)
 
-    def test_state_fidelity(self):
-        psi1 = [0.70710678118654746, 0, 0, 0.70710678118654746]
-        psi2 = [0., 0.70710678118654746, 0.70710678118654746, 0.]
-        rho1 = [[0.5, 0, 0, 0.5], [0, 0, 0, 0], [0, 0, 0, 0], [0.5, 0, 0, 0.5]]
-        mix = [[0.25, 0, 0, 0], [0, 0.25, 0, 0],
-               [0, 0, 0.25, 0], [0, 0, 0, 0.25]]
-        self.assertAlmostEqual(state_fidelity(psi1, psi1), 1.0, places=7,
-                               msg='vector-vector input')
-        self.assertAlmostEqual(state_fidelity(psi1, psi2), 0.0, places=7,
-                               msg='vector-vector input')
-        self.assertAlmostEqual(state_fidelity(psi1, rho1), 1.0, places=7,
-                               msg='vector-matrix input')
-        self.assertAlmostEqual(state_fidelity(psi1, mix), 0.25, places=7,
-                               msg='vector-matrix input')
-        self.assertAlmostEqual(state_fidelity(psi2, rho1), 0.0, places=7,
-                               msg='vector-matrix input')
-        self.assertAlmostEqual(state_fidelity(psi2, mix), 0.25, places=7,
-                               msg='vector-matrix input')
-        self.assertAlmostEqual(state_fidelity(rho1, psi1), 1.0, places=7,
-                               msg='matrix-vector input')
-        self.assertAlmostEqual(state_fidelity(rho1, rho1), 1.0, places=7,
-                               msg='matrix-matrix input')
-        self.assertAlmostEqual(state_fidelity(mix, mix), 1.0, places=7,
-                               msg='matrix-matrix input')
-
     def test_purity(self):
         rho1 = [[1, 0], [0, 0]]
         rho2 = [[0.5, 0], [0, 0.5]]
@@ -120,6 +105,11 @@ class TestQI(QiskitTestCase):
                      round(purity(rho3), 10) == 0.745)
         self.assertTrue(test_pass)
 
+    def test_purity_1d_input(self):
+        input_state = [1, 0]
+        res = purity(input_state)
+        self.assertEqual(1, res)
+
     def test_concurrence(self):
         psi1 = [1, 0, 0, 0]
         rho1 = [[0.5, 0, 0, 0.5], [0, 0, 0, 0], [0, 0, 0, 0], [0.5, 0, 0, 0.5]]
@@ -127,176 +117,112 @@ class TestQI(QiskitTestCase):
                 [0, 0.5j, 0.5, 0], [0, 0, 0, 0]]
         rho3 = 0.5 * np.array(rho1) + 0.5 * np.array(rho2)
         rho4 = 0.75 * np.array(rho1) + 0.25 * np.array(rho2)
-        test_pass = (concurrence(psi1) == 0.0 and
-                     concurrence(rho1) == 1.0 and
-                     concurrence(rho2) == 1.0 and
-                     concurrence(rho3) == 0.0 and
-                     concurrence(rho4) == 0.5)
-        self.assertTrue(test_pass)
+        concurrences = [concurrence(state) for state
+                        in [psi1, rho1, rho2, rho3, rho4]]
+        targets = [0.0, 1.0, 1.0, 0.0, 0.5]
+        self.assertTrue(np.allclose(concurrences, targets))
 
+    def test_concurrence_not_two_qubits(self):
+        input_state = np.array([[0, 1], [1, 0]])
+        self.assertRaises(Exception, concurrence, input_state)
 
-class TestPauli(QiskitTestCase):
-    """Tests for Pauli class"""
+    def test_qft(self):
+        num_qbits = 3
+        circuit = Mock()
+        q = list(range(num_qbits))
+        qft(circuit, q, num_qbits)
+        self.assertEqual([call(0), call(1), call(2)], circuit.h.mock_calls)
+        expected_calls = [call(math.pi / 2.0, 1, 0),
+                          call(math.pi / 4.0, 2, 0),
+                          call(math.pi / 2.0, 2, 1)]
+        self.assertEqual(expected_calls, circuit.cu1.mock_calls)
 
-    def setUp(self):
-        v = np.zeros(3)
-        w = np.zeros(3)
-        v[0] = 1
-        w[1] = 1
-        v[2] = 1
-        w[2] = 1
+    def test_chop(self):
+        array_in = [1.023, 1.0456789, 0.0000001, 0.1]
+        res = chop(array_in, epsilon=1e-3)
+        for i, expected in enumerate([1.023, 1.0456789, 0.0, 0.1]):
+            self.assertEqual(expected, res[i])
 
-        self.p3 = Pauli(v, w)
+    def test_chop_imaginary(self):
+        array_in = np.array([0.000456789+0.0004j, 1.0456789, 4+0.00004j,
+                             0.0000742+3j, 0.000002, 2+6j])
+        res = chop(array_in, epsilon=1e-3)
+        for i, expected in enumerate([0.0+0.0j, 1.0456789, 4+0.0j, 0+3j,
+                                      0.0, 2+6j]):
+            self.assertEqual(expected, res[i])
 
-    def test_random_pauli5(self):
-        length = 2
-        q = random_pauli(length)
-        self.log.info(q)
-        self.assertEqual(q.numberofqubits, length)
-        self.assertEqual(len(q.v), length)
-        self.assertEqual(len(q.w), length)
-        self.assertEqual(len(q.to_label()), length)
-        self.assertEqual(len(q.to_matrix()), 2 ** length)
+    def test_shannon_entropy(self):
+        input_pvec = np.array([0.5, 0.3, 0.07, 0.1, 0.03])
+        # Base 2
+        self.assertAlmostEqual(1.7736043871504037,
+                               shannon_entropy(input_pvec))
+        # Base e
+        self.assertAlmostEqual(1.229368880382052,
+                               shannon_entropy(input_pvec, np.e))
+        # Base 10
+        self.assertAlmostEqual(0.533908120973504,
+                               shannon_entropy(input_pvec, 10))
 
-    def test_pauli_invert(self):
-        self.log.info("===== p3 =====")
-        self.log.info(self.p3)
-        self.assertEqual(str(self.p3), 'v = 1.0\t0.0\t1.0\t\nw = 0.0\t1.0\t1.0\t')
+    def test_entropy(self):
+        input_density_matrix = np.array([[0.5, 0.0], [0.0, 0.5]])
+        res = entropy(input_density_matrix)
+        self.assertAlmostEqual(0.6931471805599453, res)
 
-        self.log.info("\tIn label form:")
-        self.log.info(self.p3.to_label())
-        self.assertEqual(self.p3.to_label(), 'ZXY')
+    def test_entropy_1d(self):
+        input_vector = np.array([0.5, 1, 0])
+        res = entropy(input_vector)
+        self.assertEqual(0, res)
 
-        self.log.info("\tIn matrix form:")
-        self.log.info(self.p3.to_matrix())
-        m = np.array([
-            [0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. - 1.j, 0. + 0.j],
-            [0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 1.j],
-            [0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. - 1.j, 0. + 0.j, 0. + 0.j, 0. + 0.j],
-            [0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 1.j, 0. + 0.j, 0. + 0.j],
-            [0. + 0.j, 0. + 0.j, 0. + 1.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j],
-            [0. + 0.j, 0. - 0.j, 0. + 0.j, 0. - 1.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j],
-            [0. + 1.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j],
-            [0. + 0.j, 0. - 1.j, 0. + 0.j, 0. - 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j, 0. + 0.j]])
-        self.assertTrue((self.p3.to_matrix() == m).all())
+    def test_mutual_information(self):
+        input_state = np.array([[0.5, 0.25, 0.75, 1],
+                                [1, 0, 1, 0],
+                                [0.5, 0.5, 0.5, 0.5],
+                                [0, 1, 0, 1]])
+        res = mutual_information(input_state, 2)
+        self.assertAlmostEqual(-0.15821825498448047, res)
 
-        self.log.info("===== r =====")
-        r = inverse_pauli(self.p3)
-        self.assertEqual(str(r), 'v = 1.0\t0.0\t1.0\t\nw = 0.0\t1.0\t1.0\t')
+    def test_entanglement_of_formation(self):
+        psi1 = [1, 0, 0, 0]
+        rho1 = [[0.5, 0, 0, 0.5], [0, 0, 0, 0], [0, 0, 0, 0], [0.5, 0, 0, 0.5]]
+        rho2 = [[0, 0, 0, 0], [0, 0.5, -0.5j, 0],
+                [0, 0.5j, 0.5, 0], [0, 0, 0, 0]]
+        rho3 = 0.5 * np.array(rho1) + 0.5 * np.array(rho2)
+        rho4 = 0.75 * np.array(rho1) + 0.25 * np.array(rho2)
+        eofs = [entanglement_of_formation(state, 2)
+                for state in [psi1, rho1, rho2, rho3, rho4]]
+        targets = [0.0, 1.0, 1.0, 0.0, 0.35457890266527003]
+        self.assertTrue(np.allclose(eofs, targets))
 
-        self.log.info("In label form:")
-        self.log.info(r.to_label())
-        self.assertEqual(r.to_label(), 'ZXY')
+    def test_entanglement_of_formation_1d_input(self):
+        input_state = np.array([0.5, 0.25, 0.75, 1])
+        res = entanglement_of_formation(input_state, 2)
+        self.assertAlmostEqual(0.15687647805861626, res)
 
-        self.log.info("\tIn matrix form:")
-        self.assertTrue((r.to_matrix() == m).all())
+    def test_entanglement_of_formation_invalid_input(self):
+        input_state = np.array([[0, 1], [1, 0]])
+        expected = "Input must be a state-vector or 2-qubit density matrix."
+        with patch('sys.stdout', new=StringIO()) as fake_stout:
+            res = entanglement_of_formation(input_state, 1)
+        self.assertEqual(fake_stout.getvalue().strip(), expected)
+        self.assertIsNone(res)
 
-    def test_pauli_group(self):
-        self.log.info("Group in tensor order:")
-        expected = ['III', 'XII', 'YII', 'ZII', 'IXI', 'XXI', 'YXI', 'ZXI', 'IYI', 'XYI', 'YYI',
-                    'ZYI', 'IZI', 'XZI', 'YZI', 'ZZI', 'IIX', 'XIX', 'YIX', 'ZIX', 'IXX', 'XXX',
-                    'YXX', 'ZXX', 'IYX', 'XYX', 'YYX', 'ZYX', 'IZX', 'XZX', 'YZX', 'ZZX', 'IIY',
-                    'XIY', 'YIY', 'ZIY', 'IXY', 'XXY', 'YXY', 'ZXY', 'IYY', 'XYY', 'YYY', 'ZYY',
-                    'IZY', 'XZY', 'YZY', 'ZZY', 'IIZ', 'XIZ', 'YIZ', 'ZIZ', 'IXZ', 'XXZ', 'YXZ',
-                    'ZXZ', 'IYZ', 'XYZ', 'YYZ', 'ZYZ', 'IZZ', 'XZZ', 'YZZ', 'ZZZ']
-        grp = pauli_group(3, case=1)
-        for j in grp:
-            self.log.info('==== j (tensor order) ====')
-            self.log.info(j.to_label())
-            self.assertEqual(expected.pop(0), j.to_label())
+    def test_is_pos_def(self):
+        input_x = np.array([[1, 0],
+                            [0, 1]])
+        res = is_pos_def(input_x)
+        self.assertTrue(res)
 
-        self.log.info("Group in weight order:")
-        expected = ['III', 'XII', 'YII', 'ZII', 'IXI', 'IYI', 'IZI', 'IIX', 'IIY', 'IIZ', 'XXI',
-                    'YXI', 'ZXI', 'XYI', 'YYI', 'ZYI', 'XZI', 'YZI', 'ZZI', 'XIX', 'YIX', 'ZIX',
-                    'IXX', 'IYX', 'IZX', 'XIY', 'YIY', 'ZIY', 'IXY', 'IYY', 'IZY', 'XIZ', 'YIZ',
-                    'ZIZ', 'IXZ', 'IYZ', 'IZZ', 'XXX', 'YXX', 'ZXX', 'XYX', 'YYX', 'ZYX', 'XZX',
-                    'YZX', 'ZZX', 'XXY', 'YXY', 'ZXY', 'XYY', 'YYY', 'ZYY', 'XZY', 'YZY', 'ZZY',
-                    'XXZ', 'YXZ', 'ZXZ', 'XYZ', 'YYZ', 'ZYZ', 'XZZ', 'YZZ', 'ZZZ']
-        grp = pauli_group(3)
-        for j in grp:
-            self.log.info('==== j (weight order) ====')
-            self.log.info(j.to_label())
-            self.assertEqual(expected.pop(0), j.to_label())
-
-    def test_pauli_sgn_prod(self):
-        p1 = Pauli(np.array([0]), np.array([1]))
-        p2 = Pauli(np.array([1]), np.array([1]))
-
-        self.log.info("sign product:")
-        p3, sgn = sgn_prod(p1, p2)
-        self.log.info("p1: %s", p1.to_label())
-        self.log.info("p2: %s", p2.to_label())
-        self.log.info("p3: %s", p3.to_label())
-        self.log.info("sgn_prod(p1, p2): %s", str(sgn))
-        self.assertEqual(p1.to_label(), 'X')
-        self.assertEqual(p2.to_label(), 'Y')
-        self.assertEqual(p3.to_label(), 'Z')
-        self.assertEqual(sgn, 1j)
-
-        self.log.info("sign product reverse:")
-        p3, sgn = sgn_prod(p2, p1)
-        self.log.info("p2: %s", p2.to_label())
-        self.log.info("p1: %s", p1.to_label())
-        self.log.info("p3: %s", p3.to_label())
-        self.log.info("sgn_prod(p2, p1): %s", str(sgn))
-        self.assertEqual(p1.to_label(), 'X')
-        self.assertEqual(p2.to_label(), 'Y')
-        self.assertEqual(p3.to_label(), 'Z')
-        self.assertEqual(sgn, -1j)
-
-    def test_equality_equal(self):
-        """Test equality operator: equal Paulis"""
-        p1 = self.p3
-        p2 = deepcopy(p1)
-
-        self.log.info(p1 == p2)
-        self.assertTrue(p1 == p2)
-
-        self.log.info(p2.to_label())
-        self.log.info(p1.to_label())
-        self.assertEqual(p1.to_label(), 'ZXY')
-        self.assertEqual(p2.to_label(), 'ZXY')
-
-    def test_equality_different(self):
-        """Test equality operator: different Paulis"""
-        p1 = self.p3
-        p2 = deepcopy(p1)
-
-        p2.v[0] = (p1.v[0] + 1) % 2
-        self.log.info(p1 == p2)
-        self.assertFalse(p1 == p2)
-
-        self.log.info(p2.to_label())
-        self.log.info(p1.to_label())
-        self.assertEqual(p1.to_label(), 'ZXY')
-        self.assertEqual(p2.to_label(), 'IXY')
-
-    def test_inequality_equal(self):
-        """Test inequality operator: equal Paulis"""
-        p1 = self.p3
-        p2 = deepcopy(p1)
-
-        self.log.info(p1 != p2)
-        self.assertFalse(p1 != p2)
-
-        self.log.info(p2.to_label())
-        self.log.info(p1.to_label())
-        self.assertEqual(p1.to_label(), 'ZXY')
-        self.assertEqual(p2.to_label(), 'ZXY')
-
-    def test_inequality_different(self):
-        """Test inequality operator: different Paulis"""
-        p1 = self.p3
-        p2 = deepcopy(p1)
-
-        p2.v[0] = (p1.v[0] + 1) % 2
-        self.log.info(p1 != p2)
-        self.assertTrue(p1 != p2)
-
-        self.log.info(p2.to_label())
-        self.log.info(p1.to_label())
-        self.assertEqual(p1.to_label(), 'ZXY')
-        self.assertEqual(p2.to_label(), 'IXY')
+    def test_choi_to_rauli(self):
+        input_matrix = np.array([[0.5, 0.25, 0.75, 1],
+                                 [1, 0, 1, 0],
+                                 [0.5, 0.5, 0.5, 0.5],
+                                 [0, 1, 0, 1]])
+        res = choi_to_pauli(input_matrix)
+        expected = np.array([[2.0+0.j, 2.25+0.0j, 0.0+0.75j, -1.0+0.0j],
+                             [1.75+0.j, 2.5+0.j, 0.-1.5j, 0.75+0.0j],
+                             [0.0-0.25j, 0.0+0.5j, -0.5+0.0j, 0.0-1.25j],
+                             [0.0+0.j, 0.25+0.0j, 0.0-1.25j, 1.0+0.0j]])
+        self.assertTrue(np.array_equal(expected, res))
 
 
 if __name__ == '__main__':

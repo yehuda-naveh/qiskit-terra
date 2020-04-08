@@ -1,63 +1,152 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017, IBM.
+# This code is part of Qiskit.
 #
-# This source code is licensed under the Apache License, Version 2.0 found in
-# the LICENSE.txt file in the root directory of this source tree.
-
-# pylint: disable=invalid-name
+# (C) Copyright IBM 2017.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
 """
-T=sqrt(S) phase gate or its inverse.
+T and Tdg gate.
 """
-from qiskit import CompositeGate
-from qiskit import InstructionSet
-from qiskit import QuantumCircuit
-from qiskit import QuantumRegister
+import numpy
+from qiskit.circuit import Gate
+from qiskit.circuit import QuantumCircuit
+from qiskit.circuit import QuantumRegister
 from qiskit.qasm import pi
-from qiskit.extensions.standard import header  # pylint: disable=unused-import
+from qiskit.util import deprecate_arguments
 
 
-class TGate(CompositeGate):
-    """T=sqrt(S) Clifford phase gate or its inverse."""
+class TGate(Gate):
+    r"""Single qubit T gate (Z**0.25).
 
-    def __init__(self, qubit, circ=None):
+    It induces a :math:`\pi/4` phase, and is sometimes called the pi/8 gate
+    (because of how the RZ(\pi/4) matrix looks like).
+
+    This is a non-Clifford gate and a fourth-root of Pauli-Z.
+
+    **Matrix Representation:**
+
+    .. math::
+
+        T = \begin{pmatrix}
+                1 & 0 \\
+                0 & 1+i
+            \end{pmatrix}
+
+    **Circuit symbol:**
+
+    .. parsed-literal::
+
+             ┌───┐
+        q_0: ┤ T ├
+             └───┘
+
+    Equivalent to a :math:`\pi/4` radian rotation about the Z axis.
+    """
+
+    def __init__(self, label=None):
         """Create new T gate."""
-        super().__init__("t", [], [qubit], circ)
-        self.u1(pi / 4, qubit)
+        super().__init__('t', 1, [], label=label)
 
-    def reapply(self, circ):
-        """Reapply this gate to corresponding qubits in circ."""
-        self._modifiers(circ.t(self.arg[0]))
+    def _define(self):
+        """
+        gate t a { u1(pi/4) a; }
+        """
+        from qiskit.extensions.standard.u1 import U1Gate
+        definition = []
+        q = QuantumRegister(1, 'q')
+        rule = [
+            (U1Gate(pi / 4), [q[0]], [])
+        ]
+        for inst in rule:
+            definition.append(inst)
+        self.definition = definition
 
-    def qasm(self):
-        """Return OPENQASM string."""
-        qubit = self.data[0].arg[0]
-        phi = self.data[0].param[0]
-        if phi > 0:
-            return self.data[0]._qasmif("t %s[%d];" % (qubit[0].name, qubit[1]))
+    def inverse(self):
+        """Return inverse T gate (i.e. Tdg)."""
+        return TdgGate()
 
-        return self.data[0]._qasmif("tdg %s[%d];" % (qubit[0].name, qubit[1]))
-
-
-def t(self, q):
-    """Apply T to q."""
-    if isinstance(q, QuantumRegister):
-        instructions = InstructionSet()
-        for j in range(q.size):
-            instructions.add(self.t((q, j)))
-        return instructions
-
-    self._check_qubit(q)
-    return self._attach(TGate(q, self))
+    def to_matrix(self):
+        """Return a numpy.array for the T gate."""
+        return numpy.array([[1, 0],
+                            [0, (1 + 1j) / numpy.sqrt(2)]], dtype=complex)
 
 
-def tdg(self, q):
-    """Apply Tdg to q."""
-    return self.t(q).inverse()
+class TdgGate(Gate):
+    r"""Single qubit T-adjoint gate (~Z**0.25).
+
+    It induces a :math:`-\pi/4` phase.
+
+    This is a non-Clifford gate and a fourth-root of Pauli-Z.
+
+    **Matrix Representation:**
+
+    .. math::
+
+        Tdg = \begin{pmatrix}
+                1 & 0 \\
+                0 & 1-i
+            \end{pmatrix}
+
+    **Circuit symbol:**
+
+    .. parsed-literal::
+
+             ┌─────┐
+        q_0: ┤ Tdg ├
+             └─────┘
+
+    Equivalent to a :math:`\pi/2` radian rotation about the Z axis.
+    """
+
+    def __init__(self, label=None):
+        """Create a new Tdg gate."""
+        super().__init__('tdg', 1, [], label=label)
+
+    def _define(self):
+        """
+        gate tdg a { u1(pi/4) a; }
+        """
+        from qiskit.extensions.standard.u1 import U1Gate
+        definition = []
+        q = QuantumRegister(1, 'q')
+        rule = [
+            (U1Gate(-pi / 4), [q[0]], [])
+        ]
+        for inst in rule:
+            definition.append(inst)
+        self.definition = definition
+
+    def inverse(self):
+        """Return inverse Tdg gate (i.e. T)."""
+        return TGate()
+
+    def to_matrix(self):
+        """Return a numpy.array for the inverse T gate."""
+        return numpy.array([[1, 0],
+                            [0, (1 - 1j) / numpy.sqrt(2)]], dtype=complex)
+
+
+@deprecate_arguments({'q': 'qubit'})
+def t(self, qubit, *, q=None):  # pylint: disable=invalid-name,unused-argument
+    """Apply :class:`~qiskit.extensions.standard.TGate`.
+    """
+    return self.append(TGate(), [qubit], [])
+
+
+@deprecate_arguments({'q': 'qubit'})
+def tdg(self, qubit, *, q=None):  # pylint: disable=unused-argument
+    """Apply :class:`~qiskit.extensions.standard.TdgGate`.
+    """
+    return self.append(TdgGate(), [qubit], [])
 
 
 QuantumCircuit.t = t
 QuantumCircuit.tdg = tdg
-CompositeGate.t = t
-CompositeGate.tdg = tdg

@@ -1,22 +1,31 @@
-# This file defines the persons that will be assigned as reviewers for PRs that
-# modify a particular file in the repo. Please note it is just a convention
-# for the GitHub interface, and any member of the Qiskit team can (and should!)
-# review as well.
+# This file defines the persons who will be assigned as reviewers for PRs that
+# modify particular files in the repo. The PR can be merged when approved by at 
+# least one codeowner. However, all Qiskit team members can (and should!) review the PRs.
 
-# Real code owners.
-#* @jaygambetta @ismaelfaro
-
-# Generic rule for the repository. This pattern is actually the one that will
-# apply unless specialized by a later rule
-* @ajavadia @ewinston @atilag @delapuente @diego-plan9
+# Global rule, unless specialized by a later one
+* @ajavadia @kdk @mtreinish @1ucian0
 
 # Individual folders on root directory
-/cmake     @ajavadia @atilag @diego-plan9
-/doc       @jaygambetta @ajavadia @atilag @diego-plan9
-/examples  @jaygambetta @ajavadia @atilag @diego-plan9
-/src       @chriseclectic @ajavadia @atilag @diego-plan9
+/tools/               @mtreinish @kdk
+/examples/            @jaygambetta @mtreinish @maddy-tod
+test/                 @ajavadia @mtreinish @kdk @1ucian0
+docs/                 @nonhermitian @mtreinish
 
-# qiskit folders
-qiskit/qasm/*        @1ucian0 @ajavadia @ewinston @atilag @delapuente @diego-plan9
-qiskit/tools/*       @antoniomezzacapo @chriseclectic @ajavadia @ewinston @atilag @delapuente @diego-plan9
-qiskit/schemas/*     @jaygambetta @ajavadia @ewinston @atilag @delapuente @diego-plan9
+# Qiskit folders (also their corresponding tests)
+circuit/              @ajavadia @kdk @ewinston @1ucian0 @mtreinish
+extensions/           @ajavadia @kdk @ewinston @1ucian0 @mtreinish
+dagcircuit/           @ajavadia @kdk @1ucian0 @maddy-tod
+providers/            @ajavadia @mtreinish @jyu00 @chriseclectic @ewinston
+basicaer/             @chriseclectic @ajavadia
+pulse/                @lcapelluto @taalexander @eggerdj @nkanazawa1989 @danpuzzuoli
+scheduler/            @lcapelluto @taalexander @eggerdj @nkanazawa1989 @danpuzzuoli
+quantum_info/         @chriseclectic @ajavadia @ewinston
+qi/                   @chriseclectic @ajavadia
+result/               @jyu00 @taalexander @mtreinish @ajavadia
+schemas/              @mtreinish @taalexander
+transpiler/           @ajavadia @kdk @1ucian0 @itoko @mtreinish
+assembler/            @ajavadia @kdk @taalexander @mtreinish @lcapelluto
+compiler/             @ajavadia @kdk @1ucian0 @taalexander @mtreinish @lcapelluto
+qobj/                 @jyu00 @taalexander @kdk @mtreinish
+validation/           @ajavadia @taalexander @mtreinish
+visualization/        @nonhermitian @mtreinish @1ucian0 @maddy-tod @ajavadia

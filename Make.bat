@@ -14,19 +14,16 @@ IF "%target%"=="env" GOTO :env
 IF "%target%"=="run" GOTO :run
 IF "%target%"=="lint" GOTO :lint
 IF "%target%"=="test" GOTO :test
-IF "%target%"=="profile" GOTO :profile
-IF "%target%"=="doc" GOTO :doc
 IF "%target%"=="clean" GOTO :clean
 :usage
 ECHO.
 ECHO.Usage:
 ECHO.    .\make env     Switches to a Python virtual environment
 ECHO.    .\make run     Runs Jupyter tutorials
-ECHO.    .\make lint    Runs Pyhton source code analisys tool
+ECHO.    .\make lint    Runs Python source code analysis tool
 ECHO.    .\make test    Runs tests
 ECHO.    .\make prfile  Runs profiling tests
-ECHO.    .\make doc     Creates documentation
-ECHO.    .\make clean   Cleans previoulsy generated documentation
+ECHO.    .\make clean   Cleans previously generated documentation
 ECHO.
 GOTO :end
 
@@ -43,45 +40,23 @@ activate QISKitenv & pip install -r requirements.txt
 IF errorlevel 9009 GOTO :error
 GOTO :next
 
-:run
-cd examples\jupyter
-jupyter notebook
-IF errorlevel 9009 GOTO :error
-GOTO :next
-
 :lint
 pylint qiskit test
 IF errorlevel 9009 GOTO :error
 GOTO :next
 
 :test
-pip install -r requirements.txt
 IF errorlevel 9009 GOTO :error
 python -m unittest discover -v
 IF errorlevel 9009 GOTO :error
 GOTO :next
 
-:profile
-python -m unittest discover -p "profile*.py" -v
-IF errorlevel 9009 GOTO :error
-GOTO :next
-
-:doc
-SET PYTHONPATH=$(PWD)
-sphinx-apidoc -f -o doc\_autodoc -d 5 -P -e qiskit
-IF errorlevel 9009 GOTO :error
-cd doc
-make.bat html
-GOTO :next
-
 :clean
-cd doc
-make.bat clean
 GOTO :next
 
 :error
 ECHO.
-ECHO.Somehting is missing in your Python installation.
+ECHO.Something is missing in your Python installation.
 ECHO.Please make sure you have properly installed Anaconda3
 ECHO.(https://www.continuum.io/downloads), and that you are
 ECHO.running the "Anaconda Shell Command".

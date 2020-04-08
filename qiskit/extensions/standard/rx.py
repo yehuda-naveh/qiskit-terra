@@ -1,61 +1,232 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017, IBM.
+# This code is part of Qiskit.
 #
-# This source code is licensed under the Apache License, Version 2.0 found in
-# the LICENSE.txt file in the root directory of this source tree.
-
-# pylint: disable=invalid-name
+# (C) Copyright IBM 2017.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
 """
-Rotation around the x-axis.
+Rotation around the X axis.
 """
-from qiskit import CompositeGate
-from qiskit import Gate
-from qiskit import InstructionSet
-from qiskit import QuantumCircuit
-from qiskit import QuantumRegister
-from qiskit.extensions.standard import header  # pylint: disable=unused-import
+import math
+import numpy
+from qiskit.circuit import Gate
+from qiskit.circuit import ControlledGate
+from qiskit.circuit import QuantumCircuit
+from qiskit.circuit import QuantumRegister
+from qiskit.qasm import pi
+from qiskit.util import deprecate_arguments
 
 
 class RXGate(Gate):
-    """rotation around the x-axis."""
+    r"""Single-qubit rotation about the X axis.
 
-    def __init__(self, theta, qubit, circ=None):
-        """Create new rx single qubit gate."""
-        super().__init__("rx", [theta], [qubit], circ)
+    **Circuit symbol:**
 
-    def qasm(self):
-        """Return OPENQASM string."""
-        qubit = self.arg[0]
-        theta = self.param[0]
-        return self._qasmif("rx(%s) %s[%d];" % (theta, qubit[0].name,
-                                                qubit[1]))
+    .. parsed-literal::
+
+             ┌───────┐
+        q_0: ┤ Rx(ϴ) ├
+             └───────┘
+
+    **Matrix Representation:**
+
+    .. math::
+
+        \newcommand{\th}{\frac{\theta}{2}}
+
+        RX(\theta) = exp(-i \th X) =
+            \begin{pmatrix}
+                \cos{\th}   & -i\sin{\th} \\
+                -i\sin{\th} & \cos{\th}
+            \end{pmatrix}
+    """
+
+    def __init__(self, theta):
+        """Create new RX gate."""
+        super().__init__('rx', 1, [theta])
+
+    def _define(self):
+        """
+        gate rx(theta) a {r(theta, 0) a;}
+        """
+        from qiskit.extensions.standard.r import RGate
+        definition = []
+        q = QuantumRegister(1, 'q')
+        rule = [
+            (RGate(self.params[0], 0), [q[0]], [])
+        ]
+        for inst in rule:
+            definition.append(inst)
+        self.definition = definition
+
+    def control(self, num_ctrl_qubits=1, label=None, ctrl_state=None):
+        """Return a (mutli-)controlled-RX gate.
+
+        Args:
+            num_ctrl_qubits (int): number of control qubits.
+            label (str or None): An optional label for the gate [Default: None]
+            ctrl_state (int or str or None): control state expressed as integer,
+                string (e.g. '110'), or None. If None, use all 1s.
+
+        Returns:
+            ControlledGate: controlled version of this gate.
+        """
+        if ctrl_state is None:
+            if num_ctrl_qubits == 1:
+                return CRXGate(self.params[0])
+        return super().control(num_ctrl_qubits=num_ctrl_qubits, label=label,
+                               ctrl_state=ctrl_state)
 
     def inverse(self):
-        """Invert this gate.
+        r"""Return inverted RX gate.
 
-        rx(theta)^dagger = rx(-theta)
+        :math:`RX(\lambda)^{\dagger} = RX(-\lambda)`
         """
-        self.param[0] = -self.param[0]
-        return self
+        return RXGate(-self.params[0])
 
-    def reapply(self, circ):
-        """Reapply this gate to corresponding qubits in circ."""
-        self._modifiers(circ.rx(self.param[0], self.arg[0]))
+    def to_matrix(self):
+        """Return a numpy.array for the RX gate."""
+        cos = math.cos(self.params[0] / 2)
+        sin = math.sin(self.params[0] / 2)
+        return numpy.array([[cos, -1j * sin],
+                            [-1j * sin, cos]], dtype=complex)
 
 
-def rx(self, theta, q):
-    """Apply Rx to q."""
-    if isinstance(q, QuantumRegister):
-        instructions = InstructionSet()
-        for j in range(q.size):
-            instructions.add(self.rx(theta, (q, j)))
-        return instructions
-
-    self._check_qubit(q)
-    return self._attach(RXGate(theta, q, self))
+@deprecate_arguments({'q': 'qubit'})
+def rx(self, theta, qubit, *, q=None):  # pylint: disable=invalid-name,unused-argument
+    """Apply :class:`~qiskit.extensions.standard.RXGate`."""
+    return self.append(RXGate(theta), [qubit], [])
 
 
 QuantumCircuit.rx = rx
-CompositeGate.rx = rx
+
+
+class CRXMeta(type):
+    """A metaclass to ensure that CrxGate and CRXGate are of the same type.
+
+    Can be removed when CrxGate gets removed.
+    """
+    @classmethod
+    def __instancecheck__(mcs, inst):
+        return type(inst) in {CRXGate, CrxGate}  # pylint: disable=unidiomatic-typecheck
+
+
+class CRXGate(ControlledGate, metaclass=CRXMeta):
+    r"""Controlled-RX gate.
+
+    **Circuit symbol:**
+
+    .. parsed-literal::
+
+        q_0: ────■────
+             ┌───┴───┐
+        q_1: ┤ Rx(ϴ) ├
+             └───────┘
+
+    **Matrix representation:**
+
+    .. math::
+
+        \newcommand{\th}{\frac{\theta}{2}}
+
+        CRX(\lambda)\ q_0, q_1 =
+            I \otimes |0\rangle\langle 0| + RX(\theta) \otimes |1\rangle\langle 1| =
+            \begin{pmatrix}
+                1 & 0 & 0 & 0 \\
+                0 & \cos{\th} & 0 & -i\sin{\th} \\
+                0 & 0 & 1 & 0 \\
+                0 & -i\sin{\th} & 0 & \cos{\th}
+            \end{pmatrix}
+
+    .. note::
+
+        In Qiskit's convention, higher qubit indices are more significant
+        (little endian convention). In many textbooks, controlled gates are
+        presented with the assumption of more significant qubits as control,
+        which in our case would be q_1. Thus a textbook matrix for this
+        gate will be:
+
+        .. parsed-literal::
+                 ┌───────┐
+            q_0: ┤ Rx(ϴ) ├
+                 └───┬───┘
+            q_1: ────■────
+
+        .. math::
+
+            \newcommand{\th}{\frac{\theta}{2}}
+
+            CRX(\theta)\ q_1, q_0 =
+            |0\rangle\langle0| \otimes I + |1\rangle\langle1| \otimes RX(\theta) =
+                \begin{pmatrix}
+                    1 & 0 & 0 & 0 \\
+                    0 & 1 & 0 & 0 \\
+                    0 & 0 & \cos{\th}   & -i\sin{\th} \\
+                    0 & 0 & -i\sin{\th} & \cos{\th}
+                \end{pmatrix}
+    """
+    def __init__(self, theta):
+        """Create new CRX gate."""
+        super().__init__('crx', 2, [theta], num_ctrl_qubits=1)
+        self.base_gate = RXGate(theta)
+
+    def _define(self):
+        """
+        gate cu3(theta,phi,lambda) c, t
+        { u1(pi/2) t;
+          cx c,t;
+          u3(-theta/2,0,0) t;
+          cx c,t;
+          u3(theta/2,-pi/2,0) t;
+        }
+        """
+        from qiskit.extensions.standard.u1 import U1Gate
+        from qiskit.extensions.standard.u3 import U3Gate
+        from qiskit.extensions.standard.x import CXGate
+        definition = []
+        q = QuantumRegister(2, 'q')
+        rule = [
+            (U1Gate(pi / 2), [q[1]], []),
+            (CXGate(), [q[0], q[1]], []),
+            (U3Gate(-self.params[0] / 2, 0, 0), [q[1]], []),
+            (CXGate(), [q[0], q[1]], []),
+            (U3Gate(self.params[0] / 2, -pi / 2, 0), [q[1]], [])
+        ]
+        for inst in rule:
+            definition.append(inst)
+        self.definition = definition
+
+    def inverse(self):
+        """Return inverse RX gate (i.e. with the negative rotation angle)."""
+        return CRXGate(-self.params[0])
+
+
+class CrxGate(CRXGate, metaclass=CRXMeta):
+    """The deprecated CRXGate class."""
+
+    def __init__(self, theta):
+        import warnings
+        warnings.warn('The class CrxGate is deprecated as of 0.14.0, and '
+                      'will be removed no earlier than 3 months after that release date. '
+                      'You should use the class CRXGate instead.',
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(theta)
+
+
+@deprecate_arguments({'ctl': 'control_qubit',
+                      'tgt': 'target_qubit'})
+def crx(self, theta, control_qubit, target_qubit,
+        *, ctl=None, tgt=None):  # pylint: disable=unused-argument
+    """Apply :class:`~qiskit.extensions.standard.CRXGate`."""
+    return self.append(CRXGate(theta), [control_qubit, target_qubit], [])
+
+
+QuantumCircuit.crx = crx

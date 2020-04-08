@@ -1,27 +1,30 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017, IBM.
+# This code is part of Qiskit.
 #
-# This source code is licensed under the Apache License, Version 2.0 found in
-# the LICENSE.txt file in the root directory of this source tree.
+# (C) Copyright IBM 2017.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
-# pylint: disable=invalid-name,anomalous-backslash-in-string
-
+# pylint: disable=invalid-name,unsupported-assignment-operation
 """
-A collection of useful quantum information functions.
+A collection of DEPRECATED quantum information functions.
 
-Currently this file is very sparse. More functions will be added
-over time.
+Please see the `qiskit.quantum_info` module for replacements.
 """
 
+import warnings
 import math
-
 import numpy as np
 import scipy.linalg as la
 
-from qiskit import QISKitError
-from qiskit.tools.qi.pauli import pauli_group
-
+from qiskit.quantum_info import pauli_group
 
 ###############################################################
 # circuit manipulation.
@@ -31,6 +34,9 @@ from qiskit.tools.qi.pauli import pauli_group
 # Define methods for making QFT circuits
 def qft(circ, q, n):
     """n-qubit QFT on q in circ."""
+    warnings.warn(
+        'This function is deprecated and will be removed in a future release.',
+        DeprecationWarning)
     for j in range(n):
         for k in range(j):
             circ.cu1(math.pi / float(2**(j - k)), q[j], q[k])
@@ -60,19 +66,23 @@ def partial_trace(state, trace_systems, dimensions=None, reverse=True):
             If False system-0 is the left most system in tensor product.
 
     Returns:
-        matrix_like: A density matrix with the appropriate subsytems traced
+        matrix_like: A density matrix with the appropriate subsystems traced
             over.
     Raises:
         Exception: if input is not a multi-qubit state.
     """
-    state = np.array(state)  # convert op to density matrix
+    # DEPRECATED
+    warnings.warn(
+        'This function is deprecated and will be removed in the future.'
+        ' It is superseded by the `quantum_info.partial_trace` function',
+        DeprecationWarning)
 
     if dimensions is None:  # compute dims if not specified
         num_qubits = int(np.log2(len(state)))
         dimensions = [2 for _ in range(num_qubits)]
-        if len(state) != 2 ** num_qubits:
+        if len(state) != 2**num_qubits:
             raise Exception("Input is not a multi-qubit state, "
-                            "specifify input state dims")
+                            "specify input state dims")
     else:
         dimensions = list(dimensions)
 
@@ -105,7 +115,7 @@ def __partial_trace_vec(vec, trace_systems, dimensions, reverse=True):
             If False system-0 is the left most system in tensor product.
 
     Returns:
-        ndarray: A density matrix with the appropriate subsytems traced over.
+        ndarray: A density matrix with the appropriate subsystems traced over.
     """
 
     # trace sys positions
@@ -138,12 +148,12 @@ def __partial_trace_mat(mat, trace_systems, dimensions, reverse=True):
             If False system-0 is the left most system in tensor product.
 
     Returns:
-        ndarray: A density matrix with the appropriate subsytems traced over.
+        ndarray: A density matrix with the appropriate subsystems traced over.
     """
 
     trace_systems = sorted(trace_systems, reverse=True)
     for j in trace_systems:
-        # Partition subsytem dimensions
+        # Partition subsystem dimensions
         dimension_trace = int(dimensions[j])  # traced out system
         if reverse:
             left_dimensions = dimensions[j + 1:]
@@ -159,12 +169,14 @@ def __partial_trace_mat(mat, trace_systems, dimensions, reverse=True):
 
         # Reshape input array into tri-partite system with system to be
         # traced as the middle index
-        mat = mat.reshape([dimension_left, dimension_trace, dimension_right,
-                           dimension_left, dimension_trace, dimension_right])
+        mat = mat.reshape([
+            dimension_left, dimension_trace, dimension_right, dimension_left,
+            dimension_trace, dimension_right
+        ])
         # trace out the middle system and reshape back to a matrix
-        mat = mat.trace(axis1=1, axis2=4).reshape(
-            dimension_left * dimension_right,
-            dimension_left * dimension_right)
+        mat = mat.trace(axis1=1,
+                        axis2=4).reshape(dimension_left * dimension_right,
+                                         dimension_left * dimension_right)
     return mat
 
 
@@ -173,11 +185,13 @@ def vectorize(density_matrix, method='col'):
 
     Args:
         density_matrix (ndarray): a density matrix.
-        method (str): the method of vectorization. Allowed values are
-            - 'col' (default) flattens to column-major vector.
-            - 'row' flattens to row-major vector.
-            - 'pauli'flattens in the n-qubit Pauli basis.
-            - 'pauli-weights': flattens in the n-qubit Pauli basis ordered by
+        method (str): the method of vectorization.
+            Allowed values are:
+
+            * 'col' (default) flattens to column-major vector.
+            * 'row' flattens to row-major vector.
+            * 'pauli' flattens in the n-qubit Pauli basis.
+            * 'pauli-weights': flattens in the n-qubit Pauli basis ordered by
                weight.
 
     Returns:
@@ -185,6 +199,9 @@ def vectorize(density_matrix, method='col'):
     Raises:
         Exception: if input state is not a n-qubit state
     """
+    warnings.warn(
+        'This function is deprecated and will be removed in a future release.',
+        DeprecationWarning)
     density_matrix = np.array(density_matrix)
     if method == 'col':
         return density_matrix.flatten(order='F')
@@ -195,11 +212,12 @@ def vectorize(density_matrix, method='col'):
         if len(density_matrix) != 2**num:
             raise Exception('Input state must be n-qubit state')
         if method == 'pauli_weights':
-            pgroup = pauli_group(num, case=0)
+            pgroup = pauli_group(num, case='weight')
         else:
-            pgroup = pauli_group(num, case=1)
-        vals = [np.trace(np.dot(p.to_matrix(), density_matrix))
-                for p in pgroup]
+            pgroup = pauli_group(num, case='tensor')
+        vals = [
+            np.trace(np.dot(p.to_matrix(), density_matrix)) for p in pgroup
+        ]
         return np.array(vals)
     return None
 
@@ -209,18 +227,23 @@ def devectorize(vectorized_mat, method='col'):
 
     Args:
         vectorized_mat (ndarray): a vectorized density matrix.
-        method (str): the method of devectorization. Allowed values are
-            - 'col' (default): flattens to column-major vector.
-            - 'row': flattens to row-major vector.
-            - 'pauli': flattens in the n-qubit Pauli basis.
-            - 'pauli-weights': flattens in the n-qubit Pauli basis ordered by
-               weight.
+        method (str): the method of devectorization.
+            Allowed values are
+
+            * 'col' (default): flattens to column-major vector.
+            * 'row': flattens to row-major vector.
+            * 'pauli': flattens in the n-qubit Pauli basis.
+            * 'pauli-weights': flattens in the n-qubit Pauli basis ordered by
+              weight.
 
     Returns:
         ndarray: the resulting matrix.
     Raises:
         Exception: if input state is not a n-qubit state
     """
+    warnings.warn(
+        'This function is deprecated and will be removed in a future release.',
+        DeprecationWarning)
     vectorized_mat = np.array(vectorized_mat)
     dimension = int(np.sqrt(vectorized_mat.size))
     if len(vectorized_mat) != dimension * dimension:
@@ -232,42 +255,54 @@ def devectorize(vectorized_mat, method='col'):
         return vectorized_mat.reshape(dimension, dimension, order='C')
     elif method in ['pauli', 'pauli_weights']:
         num_qubits = int(np.log2(dimension))  # number of qubits
-        if dimension != 2 ** num_qubits:
+        if dimension != 2**num_qubits:
             raise Exception('Input state must be n-qubit state')
         if method == 'pauli_weights':
-            pgroup = pauli_group(num_qubits, case=0)
+            pgroup = pauli_group(num_qubits, case='weight')
         else:
-            pgroup = pauli_group(num_qubits, case=1)
-        pbasis = np.array([p.to_matrix() for p in pgroup]) / 2 ** num_qubits
+            pgroup = pauli_group(num_qubits, case='tensor')
+        pbasis = np.array([p.to_matrix() for p in pgroup]) / 2**num_qubits
         return np.tensordot(vectorized_mat, pbasis, axes=1)
     return None
 
 
-def choi_to_rauli(choi, order=1):
-    """
-    Convert a Choi-matrix to a Pauli-basis superoperator.
+def choi_to_pauli(choi, order=1):
+    """Convert a Choi-matrix to a Pauli-basis superoperator.
 
     Note that this function assumes that the Choi-matrix
-    is defined in the standard column-stacking converntion
+    is defined in the standard column-stacking convention
     and is normalized to have trace 1. For a channel E this
-    is defined as: choi = (I \\otimes E)(bell_state).
+    is defined as: :math:`choi = (I \\otimes E)(bell_state)`.
 
     The resulting 'rauli' R acts on input states as
-    |rho_out>_p = R.|rho_in>_p
-    where |rho> = vectorize(rho, method='pauli') for order=1
-    and |rho> = vectorize(rho, method='pauli_weights') for order=0.
+
+    .. math::
+
+        |{\\rho_{out}}_p\\rangle = R \\cdot |{\\rho_{in}}_p\\rangle.
+
+    where :math:`|{\\rho}\\rangle =` ``vectorize(rho, method='pauli')`` for order=1
+    and :math:`|{\\rho}\\rangle =` ``vectorize(rho, method='pauli_weights')`` for order=0.
 
     Args:
         choi (matrix): the input Choi-matrix.
         order (int): ordering of the Pauli group vector.
-            order=1 (default) is standard lexicographic ordering.
-                Eg: [II, IX, IY, IZ, XI, XX, XY,...]
-            order=0 is ordered by weights.
-                Eg. [II, IX, IY, IZ, XI, XY, XZ, XX, XY,...]
+            ``order=1`` (default) is standard lexicographic ordering
+            (e.g. ``[II, IX, IY, IZ, XI, XX, XY,...]``)
+            ``order=0`` is ordered by weights
+            (e.g. ``[II, IX, IY, IZ, XI, XY, XZ, XX, XY,...]``)
 
     Returns:
         np.array: A superoperator in the Pauli basis.
     """
+    warnings.warn(
+        'This function is deprecated and will be removed in a future release.'
+        ' Use the `quantum_info.Choi` and `quantum_info.PTM` quantum channel'
+        ' classes for similar functionality', DeprecationWarning)
+    if order == 0:
+        order = 'weight'
+    elif order == 1:
+        order = 'tensor'
+
     # get number of qubits'
     num_qubits = int(np.log2(np.sqrt(len(choi))))
     pgp = pauli_group(num_qubits, case=order)
@@ -276,7 +311,7 @@ def choi_to_rauli(choi, order=1):
         for j in pgp:
             pauliop = np.kron(j.to_matrix().T, i.to_matrix())
             rauli += [np.trace(np.dot(choi, pauliop))]
-    return np.array(rauli).reshape(4 ** num_qubits, 4 ** num_qubits)
+    return np.array(rauli).reshape(4**num_qubits, 4**num_qubits)
 
 
 def chop(array, epsilon=1e-10):
@@ -284,12 +319,15 @@ def chop(array, epsilon=1e-10):
     Truncate small values of a complex array.
 
     Args:
-        array (array_like): array to truncte small values.
+        array (array_like): array to truncate small values.
         epsilon (float): threshold.
 
     Returns:
         np.array: A new operator with small values set to zero.
     """
+    warnings.warn(
+        'This function is deprecated and will be removed in a future release.'
+        ' Use `numpy.round` for similar functionality.', DeprecationWarning)
     ret = np.array(array)
 
     if np.isrealobj(ret):
@@ -301,8 +339,7 @@ def chop(array, epsilon=1e-10):
 
 
 def outer(vector1, vector2=None):
-    """
-    Construct the outer product of two vectors.
+    """Construct the outer product of two vectors.
 
     The second vector argument is optional, if absent the projector
     of the first vector will be returned.
@@ -312,9 +349,13 @@ def outer(vector1, vector2=None):
         vector2 (ndarray): the (optional) second vector.
 
     Returns:
-        np.array: The matrix |v1><v2|.
+        np.array: The matrix :math:`|v1\\rangle\\langle{v2}|`.
 
     """
+    warnings.warn(
+        'This function is deprecated and will be removed in a future release.'
+        ' Please use `numpy.outer` function for similar functionality.',
+        DeprecationWarning)
     if vector2 is None:
         vector2 = np.array(vector1).conj()
     else:
@@ -323,189 +364,35 @@ def outer(vector1, vector2=None):
 
 
 ###############################################################
-# Random Matrices.
-###############################################################
-
-def random_unitary_matrix(length):
-    """
-    Return a random unitary ndarray.
-
-    Args:
-        length (int): the length of the returned unitary.
-    Returns:
-        ndarray: U (length, length) unitary ndarray.
-    """
-    q_matrix = la.qr(__ginibre_matrix(length))[0]  # Get only the first element
-    return q_matrix
-
-
-def random_density_matrix(length, rank=None, method='Hilbert-Schmidt'):
-    """
-    Generate a random density matrix rho.
-
-    Args:
-        length (int): the length of the density matrix.
-        rank (int or None): the rank of the density matrix. The default
-            value is full-rank.
-        method (string): the method to use.
-            'Hilbert-Schmidt': sample rho from the Hilbert-Schmidt metric.
-            'Bures': sample rho from the Bures metric.
-
-    Returns:
-        ndarray: rho (length, length) a density matrix.
-    Raises:
-        QISKitError: if the method is not valid.
-    """
-    if method == 'Hilbert-Schmidt':
-        return __random_density_hs(length, rank)
-    elif method == 'Bures':
-        return __random_density_bures(length, rank)
-    else:
-        raise QISKitError('Error: unrecognized method {}'.format(method))
-
-
-def __ginibre_matrix(nrow, ncol=None):
-    """
-    Return a normaly distributed complex random matrix.
-
-    Args:
-        nrow (int): number of rows in output matrix.
-        ncol (int): number of columns in output matrix.
-
-    Returns:
-        ndarray: A complex rectangular matrix where each real and imaginary
-            entry is sampled from the normal distribution.
-    """
-    if ncol is None:
-        ncol = nrow
-    G = np.random.normal(size=(nrow, ncol)) + \
-        np.random.normal(size=(nrow, ncol)) * 1j
-    return G
-
-
-def __random_density_hs(N, rank=None):
-    """
-    Generate a random density matrix from the Hilbert-Schmidt metric.
-
-    Args:
-        N (int): the length of the density matrix.
-        rank (int or None): the rank of the density matrix. The default
-            value is full-rank.
-    Returns:
-        ndarray: rho (N,N  a density matrix.
-    """
-    G = __ginibre_matrix(N, rank)
-    G = G.dot(G.conj().T)
-    return G / np.trace(G)
-
-
-def __random_density_bures(N, rank=None):
-    """
-    Generate a random density matrix from the Bures metric.
-
-    Args:
-        N (int): the length of the density matrix.
-        rank (int or None): the rank of the density matrix. The default
-            value is full-rank.
-    Returns:
-        ndarray: rho (N,N) a density matrix.
-    """
-    P = np.eye(N) + random_unitary_matrix(N)
-    G = P.dot(__ginibre_matrix(N, rank))
-    G = G.dot(G.conj().T)
-    return G / np.trace(G)
-
-
-###############################################################
 # Measures.
 ###############################################################
-
-def funm_svd(a, func):
-    """Apply real scalar function to singular values of a matrix.
-
-    Args:
-        a (array_like): (N, N) Matrix at which to evaluate the function.
-        func (callable): Callable object that evaluates a scalar function f.
-
-    Returns:
-        ndarray: funm (N, N) Value of the matrix function specified by func
-        evaluated at `A`.
-    """
-    U, s, Vh = la.svd(a, lapack_driver='gesvd')
-    S = np.diag(func(s))
-    return U.dot(S).dot(Vh)
-
-
-def state_fidelity(state1, state2):
-    """Return the state fidelity between two quantum states.
-
-    Either input may be a state vector, or a density matrix. The state
-    fidelity (F) for two density matrices is defined as:
-        F(rho1, rho2) = Tr[sqrt(sqrt(rho1).rho2.sqrt(rho1))] ^ 2
-    For two pure states the fidelity is given by
-        F(|psi1>, |psi2>) = |<psi1|psi2>|^2
-
-    Args:
-        state1 (array_like): a quantum state vector or density matrix.
-        state2 (array_like): a quantum state vector or density matrix.
-
-    Returns:
-        array_like: The state fidelity F(state1, state2).
-    """
-    # convert input to numpy arrays
-    s1 = np.array(state1)
-    s2 = np.array(state2)
-
-    # fidelity of two state vectors
-    if s1.ndim == 1 and s2.ndim == 1:
-        return np.abs(s2.conj().dot(s1)) ** 2
-    # fidelity of vector and density matrix
-    elif s1.ndim == 1:
-        # psi = s1, rho = s2
-        return np.abs(s1.conj().dot(s2).dot(s1))
-    elif s2.ndim == 1:
-        # psi = s2, rho = s1
-        return np.abs(s2.conj().dot(s1).dot(s2))
-    # fidelity of two density matrices
-    s1sq = funm_svd(s1, np.sqrt)
-    s2sq = funm_svd(s2, np.sqrt)
-    return np.linalg.norm(s1sq.dot(s2sq), ord='nuc') ** 2
-
-
-def purity(state):
-    """Calculate the purity of a quantum state.
-
-    Args:
-        state (np.array): a quantum state
-    Returns:
-        float: purity.
-    """
-    rho = np.array(state)
-    if rho.ndim == 1:
-        rho = outer(rho)
-    return np.real(np.trace(rho.dot(rho)))
 
 
 def concurrence(state):
     """Calculate the concurrence.
 
     Args:
-        state (np.array): a quantum state
+        state (np.array): a quantum state (1x4 array) or a density matrix (4x4
+                          array)
     Returns:
         float: concurrence.
     Raises:
         Exception: if attempted on more than two qubits.
     """
+    warnings.warn(
+        'This function is deprecated and will be removed in a future release.'
+        ' It is superseded by the `quantum_info.concurrence` function.',
+        DeprecationWarning)
     rho = np.array(state)
     if rho.ndim == 1:
         rho = outer(state)
     if len(state) != 4:
-        raise Exception("Concurence is not defined for more than two qubits")
+        raise Exception("Concurrence is only defined for more than two qubits")
 
     YY = np.fliplr(np.diag([-1, 1, 1, -1]))
     A = rho.dot(YY).dot(rho.conj()).dot(YY)
-    w = la.eigh(A, eigvals_only=True)
-    w = np.sqrt(np.maximum(w, 0))
+    w = np.sort(np.real(la.eigvals(A)))
+    w = np.sqrt(np.maximum(w, 0.))
     return max(0.0, w[-1] - np.sum(w[0:-1]))
 
 
@@ -518,19 +405,26 @@ def shannon_entropy(pvec, base=2):
 
     Args:
         pvec (array_like): a probability vector.
-        base (int): the base of the logarith
+        base (int): the base of the logarithm
 
     Returns:
         float: The Shannon entropy H(pvec).
     """
-    # pylint: disable=missing-docstring
+    # DEPRECATED
+    warnings.warn(
+        'This function is deprecated and will be removed in the future.'
+        ' It is superseded by the `quantum_info.shannon_entropy` function',
+        DeprecationWarning)
     if base == 2:
+
         def logfn(x):
-            return - x * np.log2(x)
+            return -x * np.log2(x)
     elif base == np.e:
+
         def logfn(x):
-            return - x * np.log(x)
+            return -x * np.log(x)
     else:
+
         def logfn(x):
             return -x * np.log(x) / np.log(base)
 
@@ -551,7 +445,12 @@ def entropy(state):
     Returns:
         float: The von-Neumann entropy S(rho).
     """
-
+    # DEPRECATED
+    warnings.warn(
+        'This function is deprecated and will be removed in the future.'
+        ' It is superseded by the `quantum_info.entropy` function.',
+        DeprecationWarning)
+    # pylint: disable=assignment-from-no-return
     rho = np.array(state)
     if rho.ndim == 1:
         return 0
@@ -571,6 +470,11 @@ def mutual_information(state, d0, d1=None):
     Returns:
         float: The mutual information S(rho_A) + S(rho_B) - S(rho_AB).
     """
+    # DEPRECATED
+    warnings.warn(
+        'This function is deprecated and will be removed in the future.'
+        ' It is superseded by the `quantum_info.mutual_information` function',
+        DeprecationWarning)
     if d1 is None:
         d1 = int(len(state) / d0)
     mi = entropy(partial_trace(state, [0], dimensions=[d0, d1]))
@@ -595,6 +499,11 @@ def entanglement_of_formation(state, d0, d1=None):
     Returns:
         float: The entanglement of formation.
     """
+    # DEPRECATED
+    warnings.warn(
+        'This function is deprecated and will be removed in the future.'
+        ' It is superseded by the `quantum_info.entanglement_of_formation` function.',
+        DeprecationWarning)
     state = np.array(state)
 
     if d1 is None:
@@ -637,4 +546,9 @@ def __eof_qubit(rho):
 
 def is_pos_def(x):
     """Return is_pos_def."""
+    warnings.warn(
+        'This function is deprecated and will be removed in the future.'
+        ' It is superseded by the '
+        '`quantum_info.operators.predicates.is_positive_semidefinite_matrix`'
+        ' function.', DeprecationWarning)
     return np.all(np.linalg.eigvals(x) > 0)

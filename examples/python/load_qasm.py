@@ -1,25 +1,33 @@
-"""
-Example on how to use: load_qasm_file
+# -*- coding: utf-8 -*-
 
-Note: if you have only cloned the Qiskit repository but not
-used `pip install`, the examples only work from the root directory.
-"""
-from qiskit.wrapper import load_qasm_file
-from qiskit import QISKitError, available_backends, execute
-try:
-    qc = load_qasm_file("examples/qasm/entangled_registers.qasm")
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2017, 2018.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
-    # See a list of available local simulators
-    print("Local backends: ", available_backends({'local': True}))
+"""Example on how to load a file into a QuantumCircuit."""
 
-    # Compile and run the Quantum circuit on a local simulator backend
-    job_sim = execute(qc, "local_qasm_simulator")
-    sim_result = job_sim.result()
+from qiskit import QuantumCircuit
+from qiskit import QiskitError, execute, BasicAer
 
-    # Show the results
-    print("simulation: ", sim_result)
-    print(sim_result.get_counts(qc))
+circ = QuantumCircuit.from_qasm_file("examples/qasm/entangled_registers.qasm")
+print(circ)
 
-except QISKitError as ex:
-    print('There was an internal Qiskit error. Error = {}'.format(ex))
+# See the backend
+sim_backend = BasicAer.get_backend('qasm_simulator')
 
+
+# Compile and run the Quantum circuit on a local simulator backend
+job_sim = execute(circ, sim_backend)
+sim_result = job_sim.result()
+
+# Show the results
+print("simulation: ", sim_result)
+print(sim_result.get_counts(circ))

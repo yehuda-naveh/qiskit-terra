@@ -1,26 +1,30 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017, IBM.
+# This code is part of Qiskit.
 #
-# This source code is licensed under the Apache License, Version 2.0 found in
-# the LICENSE.txt file in the root directory of this source tree.
+# (C) Copyright IBM 2017.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
 
 """
 Ripple adder example based on Cuccaro et al., quant-ph/0410184.
 
-Note: if you have only cloned the Qiskit repository but not
-used `pip install`, the examples only work from the root directory.
 """
 
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
-from qiskit import execute, compile, register, get_backend
-
-import Qconfig
+from qiskit import BasicAer
+from qiskit import execute
 
 ###############################################################
 # Set the backend name and coupling map.
 ###############################################################
-backend = get_backend("local_qasm_simulator")
+backend = BasicAer.get_backend("qasm_simulator")
 coupling_map = [[0,1], [0, 8], [1, 2], [1, 9], [2, 3], [2, 10], [3, 4], [3, 11],
                 [4, 5], [4, 12], [5, 6], [5, 13], [6, 7], [6, 14], [7, 15], [8, 9],
                 [9, 10], [10, 11], [11, 12], [12, 13], [13, 14], [14, 15]]
@@ -80,15 +84,11 @@ qc.measure(cout[0], ans[n])
 # First version: not mapped
 job = execute(qc, backend=backend, coupling_map=None, shots=1024)
 result = job.result()
-print(result)
-print(result.get_counts("rippleadd"))
+print(result.get_counts(qc))
 
 # Second version: mapped to 2x8 array coupling graph
-qobj = compile(qc, backend=backend, coupling_map=coupling_map, shots=1024)
-job = backend.run(qobj)
+job = execute(qc, backend=backend, coupling_map=coupling_map, shots=1024)
 result = job.result()
-
-print(result)
-print(result.get_counts("rippleadd"))
+print(result.get_counts(qc))
 
 # Both versions should give the same distribution
